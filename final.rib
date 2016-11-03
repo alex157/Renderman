@@ -1,0 +1,212 @@
+##RenderMan RIB
+#File final.rib
+
+Display "final.exr" "it" "rgba" 
+Format 1280 720 1
+
+Hider "raytrace" "int incremental" 1 "int maxsamples" 1920 "int minsamples" 1920
+PixelVariance 0.01
+Integrator "PxrPathTracer" "integrator" 
+
+#Camera1
+Projection "perspective" "fov" [ 40 ]
+Translate 0 -4 19
+Rotate 180 0 1 0
+
+#Camera2
+#Projection "perspective" "fov" [ 40 ]
+#Translate -1 -6 24
+#Rotate 170 0 1 0
+#Rotate -10 1 0 0
+
+
+WorldBegin 
+	###KEY LIGHT###
+	AttributeBegin
+		AreaLightSource "PxrStdAreaLight" "keyLight" 
+		"float exposure" [8] 
+		"color specAmount" [0.1 0.1 0.1] 
+		"color lightColor" [1 1 1] 
+		Attribute "visibility" "int indirect" [0] "int transmission" [0]
+		TransformBegin
+			Rotate 45 0 1 0 
+			Translate 0 6 15
+			Scale 2 2 1 
+			Bxdf "PxrLightEmission" "emitter"
+			Geometry "rectlight"
+		TransformEnd		
+	AttributeEnd
+
+	###FILL LIGHT### 
+	AttributeBegin
+		AreaLightSource "PxrStdAreaLight" "fillLight" 
+		"float exposure" [4]
+		"color specAmount" [0.1 0.1 0.1]
+		"color lightColor" [1 1 1]
+		Attribute "visibility" "int indirect" [0] "int transmission" [0]
+		TransformBegin
+			Rotate -45 0 1 0			
+			Translate 0 6 15
+			Scale 2 2 1
+			Bxdf "PxrLightEmission" "emitter"
+			Geometry "rectlight"
+		TransformEnd
+	AttributeEnd
+	
+
+	###BACK LIGHT###
+	AttributeBegin
+		AreaLightSource "PxrStdAreaLight" "backLight" 
+		"color specAmount" [0.1 0.1 0.1]
+		"float exposure" [5]
+		"color lightColor" [1 1 1]
+		Attribute "visibility" "int indirect" [0] "int transmission" [0]
+		TransformBegin
+			Rotate 120 0 1 0
+			Translate 0 6 26
+			Scale 2 2 1
+			Bxdf "PxrLightEmission" "emitter"
+			Geometry "rectlight"
+		TransformEnd		
+	AttributeEnd
+	
+	AttributeBegin
+
+	Rotate -90 1 0 0
+	Rotate -8 0 0 1
+	Scale 0.4 0.4 0.4
+	Translate -1 0 -1
+	
+	#Clay material taken from https://renderman.pixar.com/resources/current/RenderMan/PxrLMGuide.html , ©1986-2016 Pixar#
+	#RenderMan 20 Documentation, 2016. A Practical Guide to PxrLM[online]. Available at: https://renderman.pixar.com/resources/current/RenderMan/PxrLMGuide.html [Accessed 24 May 2016].
+	# Displacement bound and turn on trace displacement
+	Attribute "displacementbound" "constant float sphere" [0.5]
+	Attribute "trace" "constant int displacements" [1]
+
+	# clay color manifold
+	Pattern "PxrManifold2D" "clayColor_PxrManifold2D"
+		"float scaleS" [1] "float scaleT" [10]
+	Pattern "PxrFractal" "clayDisp_PxrFractal" "float frequency" [1]
+	Pattern "PxrFractal" "clayColor_PxrFractal" "float frequency" [1]
+		"reference struct manifold" ["clayColor_PxrManifold2D:result"]
+
+	# clay specular blend
+	Pattern "PxrBlend" "claySpecRoughness_PxrBlend"
+		"int operation" [10]
+		"color topRGB" [0.5 0.5 0.5] #if I use 1 1 1, the light does not reflect at all on the patch
+		"color bottomRGB" [0.5 0.5 0.5] #same applies as above
+		"reference float topA" ["clayColor_PxrFractal:resultF"]
+	# clay color mix
+	Pattern "PxrMix" "clayColor_PxrMix"
+		"color color1" [0.528296 0.187493 0.0699699] #color1 to mix
+		"color color2" [0.800144 0.391712 0.218277] #color2 to mix
+		"reference float mix" ["clayColor_PxrFractal:resultF"]
+
+	# specular only layer
+	Pattern "PxrLMLayer" "claySpec_PxrLMLayer" "int diffuseBehavior" [0]
+		"color specularColor" [0.1 0.1 0.1]
+		"reference float specularRoughness" ["claySpecRoughness_PxrBlend:resultR"]
+		"color specularEta" [1.553 1.553 1.553]
+
+	# clay Bxdf
+	Bxdf "PxrLMDiffuse" "clay_PxrLMDiffuse"
+	     "reference struct lmlayer" ["claySpec_PxrLMLayer:result"]
+	     "reference color frontColor" ["clayColor_PxrMix:resultRGB"]
+
+###MODELING###
+	TransformBegin
+	Rotate 90 1 0 0
+	Displacement "current" #displacement shader
+
+	###BODY###
+	AttributeBegin
+
+	 	Rotate -90 1 0 0
+	#Top
+		AttributeBegin
+			Paraboloid 5 3 20 360
+		AttributeEnd
+
+	#Main
+                AttributeBegin
+                        Translate 0 0 12
+			Sphere 5.96 -5.96 5.96 360
+                AttributeEnd
+	#Under
+		AttributeBegin
+			Translate 0 0.1 -3.3
+			Paraboloid 6 0 15 360
+                AttributeEnd
+
+	AttributeEnd
+	
+	###HANDLE RIGHT###
+	AttributeBegin
+		Translate -3 19.2 0
+	#Main                
+		AttributeBegin
+			Translate 1.35 0 0
+                        Rotate 180 0 0 1
+                        Torus 5.8 0.45 0 360 90
+                AttributeEnd
+
+	#Small
+                AttributeBegin
+                        Translate -4 0 0
+                        Rotate 90 0 0 1
+                        Torus 0.45 0.45 0 360 90
+                AttributeEnd
+	#Cylinder
+		AttributeBegin
+                Translate -4 0.45 0
+                Rotate 90 0 1 0
+                Cylinder 0.45 0 3.3 360
+		AttributeEnd
+	AttributeEnd
+
+	###HANDLE LEFT###
+	AttributeBegin
+		Translate 3 19.2 0
+	#Main
+                AttributeBegin
+			Translate -1.35 0 0
+                        Rotate 180 1 0 0
+                        Torus 5.8 0.45 0 360 90
+                AttributeEnd
+
+	#Small
+                AttributeBegin
+                        Translate 4 0 0
+                        Torus 0.45 0.45 0 360 90
+                AttributeEnd
+	#Cylinder
+		AttributeBegin
+                Translate 1 0.45 0
+                Rotate 90 0 1 0
+                Cylinder 0.45 0 3.3 360
+		AttributeEnd
+	AttributeEnd	
+
+	TransformEnd
+	AttributeEnd
+	
+	###ENVIRONMENT###
+	Pattern "PxrTexture" "myTexture" "string filename" "r.tx"
+	Bxdf "PxrDisney" "forThePatch" "reference color baseColor" ["myTexture:resultRGB"]	
+	Patch "bilinear" "P" [ -50 -1 -50
+				50 -1 -50
+				-50 -1 50
+				50 -1 50 ]
+	#back wall
+	AttributeBegin
+		Translate -20 -30 -20	#change to -20 -37 -20 for camera2
+		Rotate 90 1 0 0
+		#Color [1 1 1]		
+		#change from 80 to 100 for camera2 
+		Patch "bilinear" "P" [ -80 -1 -80
+					80 -1 -80
+					-80 -1 80
+					80 -1 80 ]
+	AttributeEnd
+WorldEnd 
+
